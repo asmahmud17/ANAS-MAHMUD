@@ -1,0 +1,6 @@
+{
+  "name": "Professional Personal Portfolio",
+  "description": "A professional, responsive personal portfolio website built with React and Tailwind CSS featuring an immersive dark slate and emerald theme.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

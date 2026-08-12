@@ -1,0 +1,5 @@
+# Robots.txt for https://anasmahmudportfolio.com
+User-agent: *
+Allow: /
+
+Sitemap: https://anasmahmudportfolio.com/sitemap.xml
