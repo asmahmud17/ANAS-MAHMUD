@@ -12,8 +12,12 @@ import { TermsModal } from './components/TermsModal';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const savedTheme = localStorage.getItem('anas_portfolio_theme');
-    return (savedTheme as 'dark' | 'light') || 'dark';
+    try {
+      const savedTheme = localStorage.getItem('anas_portfolio_theme');
+      return (savedTheme as 'dark' | 'light') || 'dark';
+    } catch {
+      return 'dark';
+    }
   });
 
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
@@ -26,7 +30,11 @@ export default function App() {
     } else {
       root.classList.remove('dark');
     }
-    localStorage.setItem('anas_portfolio_theme', theme);
+    try {
+      localStorage.setItem('anas_portfolio_theme', theme);
+    } catch {
+      // Ignore storage write errors in restricted environments
+    }
   }, [theme]);
 
   const toggleTheme = () => {
