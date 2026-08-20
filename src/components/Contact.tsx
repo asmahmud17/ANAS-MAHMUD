@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Mail, MapPin, Send, CheckCircle2, Copy, Check, ShieldCheck } from 'lucide-react';
 import { portfolioData } from '../data/portfolioData';
+import { db } from '../lib/firebase';
 
 export const Contact: React.FC = () => {
   const { personal } = portfolioData;
@@ -10,19 +12,19 @@ export const Contact: React.FC = () => {
     email: '',
     subject: '',
     message: '',
-    honeypot: '', // Hidden honeypot field for spam prevention
+    honeypot: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [copiedEmail, setCopiedEmail] = useState(false);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'Full name is required.';
-    }
+    if (!formData.name.trim()) newErrors.name = 'Full name is required.';
 
     if (!formData.email.trim()) {
       newErrors.email = 'Email address is required.';
@@ -30,9 +32,7 @@ export const Contact: React.FC = () => {
       newErrors.email = 'Please enter a valid email address.';
     }
 
-    if (!formData.subject.trim()) {
-      newErrors.subject = 'Subject is required.';
-    }
+    if (!formData.subject.trim()) newErrors.subject = 'Subject is required.';
 
     if (!formData.message.trim()) {
       newErrors.message = 'Message content is required.';
@@ -40,7 +40,6 @@ export const Contact: React.FC = () => {
       newErrors.message = 'Message must be at least 10 characters long.';
     }
 
-    // Check honeypot field (bots fill hidden fields)
     if (formData.honeypot.trim() !== '') {
       newErrors.honeypot = 'Spam submission detected.';
     }
@@ -49,10 +48,30 @@ export const Contact: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
+    setSubmitError('');
+
+    if (!validateForm() || submitting) return;
+
+    setSubmitting(true);
+
+    try {
+      await addDoc(collection(db, 'messages'), {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        subject: formData.subject.trim(),
+        message: formData.message.trim(),
+        createdAt: serverTimestamp(),
+        source: 'portfolio-contact-form',
+      });
+
       setSubmitted(true);
+    } catch (error) {
+      console.error('Contact form submission failed:', error);
+      setSubmitError('Sorry, your message could not be sent. Please try again in a moment.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -65,8 +84,6 @@ export const Contact: React.FC = () => {
   return (
     <section id="contact" className="py-16 sm:py-24 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Section Header */}
         <div className="flex flex-col items-center text-center mb-12 sm:mb-16">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-full text-purple-600 dark:text-purple-300 text-xs font-bold uppercase tracking-widest mb-3 font-hind">
             <Mail className="w-3.5 h-3.5" />
@@ -81,52 +98,37 @@ export const Contact: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* Left Column: Direct Contact Info & Location */}
           <div className="lg:col-span-5 flex flex-col gap-6">
-            
             <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
               <div>
-                <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2 font-hind">
-                  Direct Contact Information
-                </h3>
+                <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2 font-hind">Direct Contact Information</h3>
                 <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm leading-relaxed">
                   Feel free to send a message using the interactive contact form.
                 </p>
               </div>
 
-              {/* Location Box */}
               <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block font-hind">Location</span>
-                  <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block font-hind">
-                    {personal.location}
-                  </span>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white block font-hind">{personal.location}</span>
                 </div>
               </div>
 
-              {/* Security & Spam Protection Note */}
               <div className="p-4 bg-purple-500/5 dark:bg-purple-950/40 border border-purple-500/20 rounded-2xl flex items-start gap-3 text-xs text-slate-600 dark:text-slate-300">
                 <ShieldCheck className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-extrabold text-slate-900 dark:text-white block mb-0.5 font-hind">Secure Contact Form</span>
-                  <p className="leading-relaxed text-[11px]">
-                    Includes client-side validation and anti-bot spam protection. Ready to connect to Firebase Firestore or EmailJS.
-                  </p>
+                  <p className="leading-relaxed text-[11px]">Includes client-side validation and anti-bot spam protection. Messages are securely stored in Firebase Firestore.</p>
                 </div>
               </div>
-
             </div>
-
           </div>
 
-          {/* Right Column: Contact Form */}
           <div className="lg:col-span-7">
             <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl relative">
-              
               <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mb-6 font-hind">Send Me a Message</h3>
 
               {submitted ? (
@@ -134,24 +136,14 @@ export const Contact: React.FC = () => {
                   <div className="w-16 h-16 rounded-2xl bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 flex items-center justify-center mx-auto">
                     <CheckCircle2 className="w-8 h-8" />
                   </div>
-                  
                   <h4 className="text-xl font-extrabold text-slate-900 dark:text-white font-hind">Message Sent Successfully!</h4>
                   <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed max-w-md mx-auto">
-                    Thank you, <strong className="text-purple-600 dark:text-purple-400 font-hind font-bold">{formData.name}</strong>. Your message has been validated and recorded.
+                    Thank you, <strong className="text-purple-600 dark:text-purple-400 font-hind font-bold">{formData.name}</strong>. Your message has been securely recorded.
                   </p>
-
-                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-left text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                    <p className="font-extrabold text-purple-600 dark:text-purple-400 uppercase tracking-wider text-[10px] font-hind">
-                      Integration Ready:
-                    </p>
-                    <p className="text-[11px]">
-                      This form is structured to send submissions to Firebase Firestore or an email backend service once credentials are supplied.
-                    </p>
-                  </div>
-
                   <button
                     onClick={() => {
                       setSubmitted(false);
+                      setSubmitError('');
                       setFormData({ name: '', email: '', subject: '', message: '', honeypot: '' });
                     }}
                     className="mt-4 bg-purple-600 hover:bg-purple-500 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-purple-900/30"
@@ -161,8 +153,6 @@ export const Contact: React.FC = () => {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  
-                  {/* Honeypot hidden input for spam bots */}
                   <input
                     type="text"
                     name="website"
@@ -174,95 +164,43 @@ export const Contact: React.FC = () => {
                     aria-hidden="true"
                   />
 
-                  {/* Name Input */}
                   <div>
-                    <label htmlFor="contact-name" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                      Your Name <span className="text-purple-600 dark:text-purple-400">*</span>
-                    </label>
-                    <input
-                      id="contact-name"
-                      type="text"
-                      placeholder="e.g. John Smith"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className={`w-full bg-slate-50 dark:bg-slate-950 border ${
-                        errors.name ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-800 focus:border-purple-500'
-                      } rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors`}
-                    />
+                    <label htmlFor="contact-name" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Your Name <span className="text-purple-600 dark:text-purple-400">*</span></label>
+                    <input id="contact-name" type="text" placeholder="e.g. John Smith" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={`w-full bg-slate-50 dark:bg-slate-950 border ${errors.name ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-800 focus:border-purple-500'} rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors`} />
                     {errors.name && <p className="text-red-500 text-[11px] mt-1">{errors.name}</p>}
                   </div>
 
-                  {/* Email Input */}
                   <div>
-                    <label htmlFor="contact-email" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                      Your Email Address <span className="text-purple-600 dark:text-purple-400">*</span>
-                    </label>
-                    <input
-                      id="contact-email"
-                      type="email"
-                      placeholder="e.g. john@example.com"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className={`w-full bg-slate-50 dark:bg-slate-950 border ${
-                        errors.email ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-800 focus:border-purple-500'
-                      } rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors`}
-                    />
+                    <label htmlFor="contact-email" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Your Email Address <span className="text-purple-600 dark:text-purple-400">*</span></label>
+                    <input id="contact-email" type="email" placeholder="e.g. john@example.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={`w-full bg-slate-50 dark:bg-slate-950 border ${errors.email ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-800 focus:border-purple-500'} rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors`} />
                     {errors.email && <p className="text-red-500 text-[11px] mt-1">{errors.email}</p>}
                   </div>
 
-                  {/* Subject Input */}
                   <div>
-                    <label htmlFor="contact-subject" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                      Subject <span className="text-purple-600 dark:text-purple-400">*</span>
-                    </label>
-                    <input
-                      id="contact-subject"
-                      type="text"
-                      placeholder="e.g. Project Inquiry / Practice Video Editing Request"
-                      value={formData.subject}
-                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                      className={`w-full bg-slate-50 dark:bg-slate-950 border ${
-                        errors.subject ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-800 focus:border-purple-500'
-                      } rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors`}
-                    />
+                    <label htmlFor="contact-subject" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Subject <span className="text-purple-600 dark:text-purple-400">*</span></label>
+                    <input id="contact-subject" type="text" placeholder="e.g. Project Inquiry / Practice Video Editing Request" value={formData.subject} onChange={(e) => setFormData({ ...formData, subject: e.target.value })} className={`w-full bg-slate-50 dark:bg-slate-950 border ${errors.subject ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-800 focus:border-purple-500'} rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors`} />
                     {errors.subject && <p className="text-red-500 text-[11px] mt-1">{errors.subject}</p>}
                   </div>
 
-                  {/* Message Input */}
                   <div>
-                    <label htmlFor="contact-message" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                      Message <span className="text-purple-600 dark:text-purple-400">*</span>
-                    </label>
-                    <textarea
-                      id="contact-message"
-                      rows={5}
-                      placeholder="Write your message here..."
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className={`w-full bg-slate-50 dark:bg-slate-950 border ${
-                        errors.message ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-800 focus:border-purple-500'
-                      } rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors`}
-                    />
+                    <label htmlFor="contact-message" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Message <span className="text-purple-600 dark:text-purple-400">*</span></label>
+                    <textarea id="contact-message" rows={5} placeholder="Write your message here..." value={formData.message} onChange={(e) => setFormData({ ...formData, message: e.target.value })} className={`w-full bg-slate-50 dark:bg-slate-950 border ${errors.message ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-800 focus:border-purple-500'} rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors`} />
                     {errors.message && <p className="text-red-500 text-[11px] mt-1">{errors.message}</p>}
                   </div>
 
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3.5 px-6 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
-                  >
-                    <Send className="w-4 h-4" />
-                    Send Message
-                  </button>
+                  {submitError && (
+                    <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-600 dark:text-red-300">{submitError}</div>
+                  )}
 
+                  <button type="submit" disabled={submitting} className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 px-6 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2">
+                    <Send className="w-4 h-4" />
+                    {submitting ? 'Sending...' : 'Send Message'}
+                  </button>
                 </form>
               )}
-
             </div>
           </div>
-
         </div>
-
       </div>
     </section>
   );
